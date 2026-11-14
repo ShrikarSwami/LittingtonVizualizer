@@ -1,0 +1,24 @@
+appId: com.littington.vizualizer
+productName: LittingtonVizualizer
+directories:
+  buildResources: build
+  output: dist
+files:
+  - src/**
+  - package.json
+extraResources:
+  - from: native/audio-tap/.build/release/AudioTap
+    to: bin/AudioTap
+mac:
+  category: public.app-category.music
+  icon: build/icon.icns
+  target: dmg
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSAudioCaptureUsageDescription: LittingtonVizualizer listens to your music app's audio to drive the visuals.
+    NSAppleEventsUsageDescription: LittingtonVizualizer asks Spotify what is currently playing.
+win:
+  icon: build/icon.ico
+linux:
+  icon: build/icon.png

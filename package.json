@@ -1,0 +1,21 @@
+{
+  "name": "littington-vizualizer",
+  "productName": "LittingtonVizualizer",
+  "version": "0.1.0",
+  "description": "Live, audio-reactive Milkdrop-style visuals for Spotify and YouTube Music on macOS.",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:native": "swift build -c release --package-path native/audio-tap",
+    "icons": "python3 tools/make-icons.py",
+    "dist": "npm run build:native && electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
