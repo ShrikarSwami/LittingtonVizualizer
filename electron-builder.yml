@@ -7,16 +7,19 @@ files:
   - src/**
   - package.json
 extraResources:
+  # the native helper that captures the music app's audio
   - from: native/audio-tap/.build/release/AudioTap
     to: bin/AudioTap
+  # the companion Chrome extension, kept as plain files so Chrome can load it
+  - from: extension
+    to: extension
 mac:
   category: public.app-category.music
   icon: build/icon.icns
   target: dmg
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.plist
+  identity: "-"            # ad-hoc signature: runs on this Mac without an Apple developer account
+  hardenedRuntime: false
   extendInfo:
-    NSAudioCaptureUsageDescription: LittingtonVizualizer listens to your music app's audio to drive the visuals.
     NSAppleEventsUsageDescription: LittingtonVizualizer asks Spotify what is currently playing.
 win:
   icon: build/icon.ico

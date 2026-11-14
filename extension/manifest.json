@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "name": "LittingtonVizualizer Bridge",
   "version": "0.1.0",
-  "description": "Sends YouTube Music now-playing and up-next data to the LittingtonVizualizer desktop app on this computer.",
-  "host_permissions": ["https://music.youtube.com/*"],
+  "description": "Sends YouTube Music's now-playing info and up-next queue to the LittingtonVizualizer app on this computer. Nothing leaves your machine.",
+  "permissions": ["scripting"],
+  "host_permissions": ["https://music.youtube.com/*", "http://127.0.0.1:38217/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
-    { "matches": ["https://music.youtube.com/*"], "js": ["content.js"] }
+    { "matches": ["https://music.youtube.com/*"], "js": ["content.js"], "run_at": "document_idle" }
   ]
 }

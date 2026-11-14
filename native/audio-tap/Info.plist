@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.littington.vizualizer.audiotap</string>
+  <key>CFBundleName</key>
+  <string>LittingtonVizualizer Audio</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>LittingtonVizualizer listens to your music app's audio to drive the visuals. Nothing is recorded or sent anywhere.</string>
+</dict>
+</plist>
