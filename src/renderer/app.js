@@ -115,7 +115,33 @@ lv.onState((next) => {
   applyMood(true);
   queue.update(next);
   showStatus();
+  showTransport();
 });
+
+// ---- transport ----
+
+// Windows drives playback through its own media controls; macOS has no equivalent here.
+const canControl = lv.platform === 'win32';
+
+function showTransport() {
+  const bar = $('transport');
+  if (!bar) return;
+  bar.classList.toggle('unavailable', !canControl || !state.source);
+  $('playpause').classList.toggle('playing', Boolean(state.playing));
+}
+
+if (canControl) {
+  const press = (name) => (event) => {
+    event.currentTarget.blur();
+    // Assume the press lands: Windows takes a moment to report the new state back.
+    if (name === 'playpause') $('playpause').classList.toggle('playing');
+    lv.mediaCommand(name);
+  };
+  $('prev').addEventListener('click', press('prev'));
+  $('next').addEventListener('click', press('next'));
+  $('playpause').addEventListener('click', press('playpause'));
+}
+showTransport();
 
 // ---- controls ----
 

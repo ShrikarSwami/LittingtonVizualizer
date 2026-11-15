@@ -19,6 +19,18 @@
       <div id="meta">
         <h1 id="title">Nothing playing</h1>
         <p id="byline"><span id="artist">Open Spotify or YouTube Music</span><span id="album"></span></p>
+        <nav id="transport">
+          <button id="prev" aria-label="Previous track" title="Previous">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M7 6h2.2v12H7zm10 0v12l-8-6z"/></svg>
+          </button>
+          <button id="playpause" aria-label="Play or pause" title="Play / pause">
+            <svg class="i-play" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6l11-6.8z"/></svg>
+            <svg class="i-pause" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M7.5 5.5h3.2v13H7.5zm5.8 0h3.2v13h-3.2z"/></svg>
+          </button>
+          <button id="next" aria-label="Next track" title="Next">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M14.8 6H17v12h-2.2zM7 6l8 6-8 6z"/></svg>
+          </button>
+        </nav>
         <nav id="tabs">
           <button data-tab="lyrics" class="active">Lyrics</button>
           <button data-tab="queue">Up next</button>

@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('lv', {
   connectSpotify: (clientId) => ipcRenderer.invoke('spotify:connect', clientId),
   disconnectSpotify: () => ipcRenderer.invoke('spotify:disconnect'),
   showExtensionFolder: () => ipcRenderer.invoke('extension:show'),
+  mediaCommand: (name) => ipcRenderer.invoke('media:command', name),
   ready: () => ipcRenderer.send('renderer:ready'),
   onState: on('state'),
   onAudio: on('audio'),
