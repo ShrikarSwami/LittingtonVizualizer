@@ -326,3 +326,66 @@ body.show-help #gear { opacity: 0.45; }
 @media (prefers-reduced-motion: reduce) {
   #lyrics .lines, #lyrics .line, #art-wrap { transition: none; }
 }
+
+/* ---- long titles scroll back and forth instead of being cut off ---- */
+/* The span stays inline at rest: an inline-block child would collapse the title's
+   two-line clamp into a single line box and the clamp would stop working. */
+#title.marquee, #title.measuring {
+  display: block;
+  white-space: nowrap;
+  -webkit-line-clamp: none;
+}
+#mini-title.marquee, #mini-title.measuring { text-overflow: clip; }
+#title.marquee .scroll, #mini-title.marquee .scroll,
+#title.measuring .scroll, #mini-title.measuring .scroll {
+  display: inline-block;
+  will-change: transform;
+}
+#title.marquee .scroll, #mini-title.marquee .scroll {
+  animation: lv-marquee var(--marquee-time, 12s) ease-in-out infinite;
+}
+@keyframes lv-marquee {
+  0%, 9%   { transform: translateX(0); }
+  46%, 56% { transform: translateX(var(--marquee-shift, 0px)); }
+  93%, 100% { transform: translateX(0); }
+}
+
+/* ---- transport ---- */
+#transport { display: flex; align-items: center; gap: 1vmin; margin: 2.2vmin 0 0; }
+#transport button {
+  display: grid;
+  place-items: center;
+  width: clamp(32px, 5vmin, 54px);
+  height: clamp(32px, 5vmin, 54px);
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease;
+}
+#transport button:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+#transport button:active { transform: scale(0.93); }
+#transport button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#transport button svg { width: 55%; height: 55%; }
+#playpause .i-pause { display: none; }
+#playpause.playing .i-play { display: none; }
+#playpause.playing .i-pause { display: block; }
+#transport.unavailable { display: none; }
+
+/* ---- the live line fills as the song moves through it ---- */
+#lyrics .line.now {
+  color: transparent;
+  background-image: linear-gradient(90deg,
+    #fff 0%, #fff var(--fill, 0%),
+    rgba(255, 255, 255, 0.46) var(--fill, 0%), rgba(255, 255, 255, 0.46) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: none;
+}
+#lyrics.plain .line.now { color: rgba(255, 255, 255, 0.78); background-image: none; text-shadow: var(--shadow); }
+
+@media (prefers-reduced-motion: reduce) {
+  #title.marquee .scroll, #mini-title.marquee .scroll { animation: none; }
+}

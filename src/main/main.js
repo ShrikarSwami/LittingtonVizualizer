@@ -19,6 +19,7 @@ const LABELS = { spotify: 'Spotify', ytmusic: 'YouTube Music' };
 app.setName('LittingtonVizualizer');
 
 let win = null;
+let lastSource = null;
 let rendererReady = false;
 const tap = new Tap();
 
@@ -128,6 +129,7 @@ async function tick() {
     const yt = extension || systemFor(running.ytmusic);
     const sp = spotifyScript || systemFor(running.spotify);
     const source = chooseSource(running, sp, yt);
+    lastSource = source;
 
     if (platform.audioMode === 'tap') tap.target(source ? running[source].prefix : null);
 
@@ -194,6 +196,12 @@ tap.on('samples', (buffer) => send('audio', buffer));
 tap.on('status', (status) => send('audio:status', status));
 
 // ---- Requests from the window ----
+
+// Play / pause / skip, handed to whatever the platform can drive.
+ipcMain.handle('media:command', (_event, name) => {
+  if (typeof platform.command !== 'function') return false;
+  return platform.command(name, lastSource);
+});
 
 ipcMain.on('renderer:ready', () => {
   rendererReady = true;
