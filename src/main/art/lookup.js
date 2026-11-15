@@ -3,41 +3,93 @@
 // The artist and title are sent to Apple to do this.
 const { net } = require('electron');
 
-const cache = new Map();      // key -> { artUrl, genre }
+const cache = new Map();      // key -> { artUrl, genre, at }
 const pending = new Set();
 const EMPTY = { artUrl: '', genre: '' };
-const simplify = (text) => String(text || '').toLowerCase().replace(/[\(\[].*?[\)\]]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const MISS_RETRY = 10 * 60 * 1000;   // a miss is worth another try later, a hit is not
 
-async function search(title, artist) {
-  const query = new URLSearchParams({ term: `${artist} ${title}`.trim(), entity: 'song', limit: '8' });
+// Accents have to come off before the letters do, or "SUPERSÓNICO" turns into "supers nico"
+// and no longer matches the plain "SUPERSONICO" that Windows reports.
+const fold = (text) => String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const simplify = (text) => fold(text).toLowerCase().replace(/[\(\[].*?[\)\]]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+// Edits that are their own release on streaming but not on Apple Music.
+const NOISE = /\s*[-\u2013\u2014]\s*((ultra|super)\s+)?(slowed|sped\s*up|speed\s*up|reverb|nightcore|remaster(ed)?|radio\s+edit|extended|live|bonus\s+track)\b.*$/i;
+const searchName = (title) => fold(title).replace(/[\(\[][^\)\]]*[\)\]]/g, '').replace(NOISE, '').trim() || fold(title);
+
+const tokens = (text) => simplify(text).split(' ').filter((word) => word.length >= 3);
+
+function titleScore(wanted, got) {
+  if (!wanted || !got) return 0;
+  if (got === wanted) return 4;
+  if (got.startsWith(wanted) || wanted.startsWith(got)) return 3;
+  if (got.includes(wanted) || wanted.includes(got)) return 2;
+  return 0;
+}
+
+function artistScore(wanted, got) {
+  if (!wanted || !got) return 0;
+  if (got === wanted) return 2;
+  const mine = tokens(wanted);
+  if (mine.length && mine.some((word) => got.includes(word))) return 1;
+  return 0;
+}
+
+function albumScore(wanted, got) {
+  if (!wanted || !got) return 0;
+  if (got === wanted) return 3;
+  if (got.includes(wanted) || wanted.includes(got)) return 2;
+  return 0;
+}
+
+async function search(title, artist, album) {
+  const term = `${fold(artist)} ${searchName(title)}`.trim();
+  const query = new URLSearchParams({ term, entity: 'song', limit: '25' });
   const response = await net.fetch(`https://itunes.apple.com/search?${query}`);
   if (!response.ok) return EMPTY;
   const { results = [] } = await response.json();
+  if (!results.length) return EMPTY;
+
   const wantTitle = simplify(title);
-  const wantArtist = simplify(artist).split(' ')[0];
-  const score = (r) => (simplify(r.trackName) === wantTitle ? 2 : simplify(r.trackName).includes(wantTitle) ? 1 : 0)
-    + (wantArtist && simplify(r.artistName).includes(wantArtist) ? 1 : 0);
-  const best = results.slice().sort((a, b) => score(b) - score(a))[0];
-  if (!best || score(best) === 0) return EMPTY;
-  return {
-    artUrl: best.artworkUrl100 ? best.artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.') : '',
-    genre: best.primaryGenreName || '',
+  const wantArtist = simplify(artist);
+  const wantAlbum = simplify(album);
+
+  const rate = (r) => {
+    const t = titleScore(wantTitle, simplify(r.trackName));
+    const a = artistScore(wantArtist, simplify(r.artistName));
+    const c = albumScore(wantAlbum, simplify(r.collectionName));
+    return { t, a, c, total: t * 2 + a + c };
   };
+
+  const rated = results.map((r) => ({ r, ...rate(r) })).sort((x, y) => y.total - x.total);
+  const best = rated[0];
+
+  // Artwork has to be the right song. An artist match on its own is how a prolific
+  // artist ends up wearing another album's cover, so the title has to agree too.
+  const trusted = best && best.t >= 2 && (best.a > 0 || best.c > 0);
+  const art = trusted && best.r.artworkUrl100
+    ? best.r.artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.')
+    : '';
+
+  // The mood only needs the right neighbourhood, so an artist match is enough for genre.
+  const forGenre = trusted ? best : rated.find((entry) => entry.a > 0);
+  return { artUrl: art, genre: (forGenre && forGenre.r.primaryGenreName) || '' };
 }
 
 // Returns what is known right now ({artUrl:'', genre:''} at first) and looks the rest up in the background.
 function infoFor(track) {
-  const key = `${track.title}|${track.artist}`;
-  if (cache.has(key)) return cache.get(key);
+  const key = `${track.title}|${track.artist}|${track.album || ''}`;
+  const held = cache.get(key);
+  if (held && (held.artUrl || Date.now() - held.at < MISS_RETRY)) return held;
   if (!pending.has(key)) {
     pending.add(key);
-    search(track.title, track.artist).catch(() => EMPTY).then((info) => {
+    search(track.title, track.artist, track.album).catch(() => EMPTY).then((info) => {
       pending.delete(key);
-      cache.set(key, info);
+      cache.set(key, { ...info, at: Date.now() });
       if (cache.size > 200) cache.delete(cache.keys().next().value);
     });
   }
-  return EMPTY;
+  return held || EMPTY;
 }
 
 // Artists whose catalogue is filed under one genre but feels like another. Add your own.
