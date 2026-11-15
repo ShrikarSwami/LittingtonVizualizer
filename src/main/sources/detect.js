@@ -18,8 +18,8 @@ async function audioBundlePrefix(appPath) {
     const browser = await read('CrBundleIdentifier');
     const own = await read('CFBundleIdentifier');
     bundleCache.set(appPath, {
-      prefix: browser || own || 'com.google.Chrome',
-      viaBrowser: Boolean(browser),
+      prefix: browser || own || 'com.google.Chrome',   // whose processes make the sound
+      bundle: own,                                     // what macOS calls the app in Now Playing
     });
   }
   return bundleCache.get(appPath);
@@ -33,7 +33,7 @@ async function detect() {
     if (!match) continue;
     const [, pid, comm] = match;
     if (!found.spotify && comm.endsWith('/Spotify.app/Contents/MacOS/Spotify')) {
-      found.spotify = { pid: Number(pid), prefix: 'com.spotify.client' };
+      found.spotify = { pid: Number(pid), prefix: 'com.spotify.client', bundle: 'com.spotify.client' };
     }
     const ytm = comm.match(/^(.*\/YouTube Music\.app)\/Contents\/MacOS\/[^/]+$/);
     if (!found.ytmusic && ytm) {

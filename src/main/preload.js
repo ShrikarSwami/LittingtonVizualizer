@@ -8,6 +8,7 @@ const on = (channel) => (handler) => {
 };
 
 contextBridge.exposeInMainWorld('lv', {
+  platform: process.platform,
   loadPresets: () => ipcRenderer.invoke('presets:load'),
   fetchArt: (url) => ipcRenderer.invoke('art:fetch', url),
   getLyrics: (track) => ipcRenderer.invoke('lyrics:get', track),

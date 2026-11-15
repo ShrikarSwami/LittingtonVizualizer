@@ -9,16 +9,16 @@ const element = (tag, className, text) => {
 
 export function extensionSteps() {
   const box = document.createDocumentFragment();
-  box.append(element('div', '', 'YouTube Music keeps its track info and queue to itself. A small Chrome extension that ships with this app passes them along:'));
+  box.append(element('div', '', 'YouTube Music keeps its queue to itself. A small Chrome extension that ships with this app passes it along. One-time setup:'));
   const list = element('ol');
   for (const step of [
-    'Open chrome://extensions in Chrome (the address is copied when you press the button).',
-    'Turn on Developer mode, press “Load unpacked”, and choose the extension folder.',
-    'Play something in YouTube Music.',
+    'Press the button below. Chrome opens its Extensions page and Finder highlights a folder named “extension”.',
+    'On the Extensions page, switch on Developer mode (top right).',
+    'Drag the highlighted “extension” folder from Finder onto that page.',
   ]) list.append(element('li', '', step));
   box.append(list);
   const row = element('div', 'row');
-  const button = element('button', 'action', 'Show extension folder');
+  const button = element('button', 'action', 'Set up extension');
   button.addEventListener('click', () => window.lv.showExtensionFolder());
   row.append(button);
   box.append(row);

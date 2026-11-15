@@ -9,6 +9,9 @@ export function installHotkeys(actions) {
     tab: actions.switchPanel,
     h: actions.hide,
     c: actions.tint,
+    m: actions.infoMode,
+    v: actions.mood,
+    escape: actions.escape,
     '?': actions.help,
     '/': actions.help,
   };

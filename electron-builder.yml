@@ -7,9 +7,6 @@ files:
   - src/**
   - package.json
 extraResources:
-  # the native helper that captures the music app's audio
-  - from: native/audio-tap/.build/release/AudioTap
-    to: bin/AudioTap
   # the companion Chrome extension, kept as plain files so Chrome can load it
   - from: extension
     to: extension
@@ -17,11 +14,25 @@ mac:
   category: public.app-category.music
   icon: build/icon.icns
   target: dmg
-  identity: "-"            # ad-hoc signature: runs on this Mac without an Apple developer account
+  # Sign with the Apple Development certificate in the login keychain. A real identity keeps the
+  # audio-capture permission valid across rebuilds; an ad-hoc signature would make macOS ask again
+  # after every reinstall. (No certificate? Set `identity: "-"` instead of `type`.)
+  type: development
   hardenedRuntime: false
+  extraResources:
+    # the native helper that captures the music app's audio
+    - from: native/audio-tap/.build/release/AudioTap
+      to: bin/AudioTap
   extendInfo:
     NSAppleEventsUsageDescription: LittingtonVizualizer asks Spotify what is currently playing.
 win:
   icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: x64
+  artifactName: LittingtonVizualizer-Setup-${version}.${ext}
+nsis:
+  oneClick: true          # installs for the current user, no admin prompt, then launches
+  shortcutName: LittingtonVizualizer
 linux:
   icon: build/icon.png

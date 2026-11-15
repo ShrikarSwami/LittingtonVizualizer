@@ -14,6 +14,8 @@ export class NowPlaying {
     $('title').textContent = title;
     $('artist').textContent = artist;
     $('album').textContent = album || '';
+    $('mini-title').textContent = title;
+    $('mini-by').textContent = [artist, album].filter(Boolean).join(' — ');
     document.title = title && artist ? `${title} — ${artist}` : 'LittingtonVizualizer';
   }
 
@@ -21,19 +23,18 @@ export class NowPlaying {
     if (url === this.artUrl) return;
     this.artUrl = url;
     const request = ++this.request;
-    const image = $('art');
+    const images = [$('art'), $('mini-art')];
     const dataUrl = url ? await window.lv.fetchArt(url) : null;
     if (request !== this.request) return;            // a newer track arrived while this loaded
     if (!dataUrl) {
-      image.classList.remove('shown');
+      for (const image of images) image.classList.remove('shown');
       this.applyPalette(DEFAULT_PALETTE);
       return;
     }
     const loaded = new Image();
     loaded.onload = () => {
       if (request !== this.request) return;
-      image.src = dataUrl;
-      image.classList.add('shown');
+      for (const image of images) { image.src = dataUrl; image.classList.add('shown'); }
       this.applyPalette(paletteFromImage(loaded));
     };
     loaded.src = dataUrl;

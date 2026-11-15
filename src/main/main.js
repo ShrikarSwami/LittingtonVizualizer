@@ -1,11 +1,12 @@
 // LittingtonVizualizer — main process: one window, plus the loop that works out what is playing.
-const { app, BrowserWindow, ipcMain, net, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, net, shell, clipboard, session, desktopCapturer } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
-const { detect } = require('./sources/detect');
+const platform = require(process.platform === 'win32' ? './platform/windows' : './platform/mac');
 const spotify = require('./sources/spotify');
 const ytmusic = require('./sources/ytmusic');
+const { infoFor, moodFor } = require('./art/lookup');
 const { getLyrics } = require('./lyrics/lrclib');
 const { Tap } = require('./audio/tap-bridge');
 const bridge = require('./bridge/extension-server');
@@ -33,7 +34,7 @@ function createWindow() {
     minHeight: 420,
     backgroundColor: '#05030d',
     title: 'LittingtonVizualizer',
-    titleBarStyle: 'hiddenInset',
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : { autoHideMenuBar: true }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -111,12 +112,24 @@ async function tick() {
   if (ticking) return;
   ticking = true;
   try {
-    const running = await detect();
-    const sp = running.spotify ? await spotify.nowPlaying() : null;
-    const yt = running.ytmusic ? ytmusic.state() : null;
+    const running = await platform.detect();
+    const anyRunning = running.spotify || running.ytmusic;
+    const [spotifyScript, system] = await Promise.all([
+      running.spotify ? platform.spotifyNowPlaying() : null,
+      anyRunning ? platform.systemNowPlaying() : null,
+    ]);
+    // The operating system's own "now playing" info fills in for whichever richer source
+    // isn't available: the extension for YouTube Music, AppleScript for Spotify on the Mac.
+    const systemFor = (app) => {
+      const found = platform.pick(system, app);
+      return found ? { ...found, queue: null } : null;
+    };
+    const extension = running.ytmusic ? ytmusic.state() : null;
+    const yt = extension || systemFor(running.ytmusic);
+    const sp = spotifyScript || systemFor(running.spotify);
     const source = chooseSource(running, sp, yt);
 
-    tap.target(source ? running[source].prefix : null);
+    if (platform.audioMode === 'tap') tap.target(source ? running[source].prefix : null);
 
     const state = {
       source,
@@ -134,9 +147,9 @@ async function tick() {
     if (source === 'ytmusic') {
       if (yt) {
         Object.assign(state, { playing: yt.playing, track: yt.track, position: yt.position, positionAt: yt.positionAt, queue: yt.queue });
-        if (!yt.queue) state.queueNote = 'empty';
+        if (!yt.queue) state.queueNote = extension ? 'empty' : 'extension';
       } else {
-        state.note = 'extension';
+        state.note = 'waiting';
         state.queueNote = 'extension';
       }
     } else if (source === 'spotify') {
@@ -157,6 +170,15 @@ async function tick() {
         state.queue = spotifyQueue;
         if (!spotifyQueue) state.queueNote = spotify.queueError() || 'empty';
       }
+    }
+    // Genre (for the visual mood) and, where the source had none, artwork.
+    state.genre = '';
+    state.mood = 'neutral';
+    if (state.track) {
+      const info = infoFor(state.track);
+      if (!state.track.artUrl && info.artUrl) state.track = { ...state.track, artUrl: info.artUrl };
+      state.genre = info.genre;
+      state.mood = moodFor(info.genre, state.track.artist);
     }
     send('state', state);
   } catch (error) {
@@ -223,20 +245,32 @@ ipcMain.handle('spotify:connect', (_event, clientId) => {
 
 ipcMain.handle('spotify:disconnect', () => { spotify.logout(); spotifyQueue = null; tick(); });
 
+// Sets the stage for installing the companion extension: Chrome's extensions page in front,
+// and the extension folder highlighted in Finder, ready to be dragged onto that page.
 ipcMain.handle('extension:show', () => {
-  shell.showItemInFolder(path.join(EXTENSION_DIR, 'manifest.json'));
   clipboard.writeText('chrome://extensions');
+  platform.openExtensionsPage(() => shell.showItemInFolder(EXTENSION_DIR));
 });
 
 // ---- Lifecycle ----
 
-if (!app.requestSingleInstanceLock()) {
+// LV_DEV_SECOND=1 lets a development copy run beside the installed app.
+if (!process.env.LV_DEV_SECOND && !app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
 
   app.whenReady().then(() => {
     if (!app.isPackaged && app.dock) app.dock.setIcon(path.join(ROOT, 'build', 'icon.png'));
+    platform.start();
+    if (platform.audioMode === 'loopback') {
+      // Windows: when the window asks to capture, hand it the system's sound without a picker.
+      session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        desktopCapturer.getSources({ types: ['screen'] })
+          .then((sources) => callback({ video: sources[0], audio: 'loopback' }))
+          .catch(() => callback({}));
+      });
+    }
     bridge.start({
       onYtm: (report) => ytmusic.receive(report),
       onSpotifyCallback: async (query) => {
@@ -251,5 +285,5 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', () => tap.stop());
+  app.on('before-quit', () => { tap.stop(); platform.stop(); });
 }

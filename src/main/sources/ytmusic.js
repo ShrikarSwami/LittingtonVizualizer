@@ -17,7 +17,7 @@ function receive(report) {
     pageId: text(report.pageId, 40),
     playing: Boolean(report.playing),
     track: report.title ? {
-      id: `ytm:${text(report.title)}|${text(report.artist)}`,
+      id: `${text(report.title)}|${text(report.artist)}`,
       title: text(report.title),
       artist: text(report.artist),
       album: text(report.album),

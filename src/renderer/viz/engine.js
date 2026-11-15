@@ -84,15 +84,17 @@ void main() { fragColor = mix(texture(uA, vUv), texture(uB, vUv), uMix); }`;
 const FINAL_FRAGMENT = `#version 300 es
 precision highp float;
 uniform sampler2D uFrame;
-uniform float uDim;
+uniform float uDim, uSaturation, uContrast, uKick;
 in vec2 vUv;
 out vec4 fragColor;
 void main() {
-  vec3 c = texture(uFrame, vUv).rgb;
+  vec2 q = vUv - 0.5;
+  vec3 c = texture(uFrame, 0.5 + q * (1.0 - uKick * 0.05)).rgb;   // the picture lunges on a beat
   c = 1.0 - exp(-c * 1.35);                       // soft roll-off instead of clipping
   float l = dot(c, vec3(0.299, 0.587, 0.114));
-  c = mix(vec3(l), c, 1.15);                      // a little extra saturation
-  vec2 q = vUv - 0.5;
+  c = mix(vec3(l), c, uSaturation);
+  c = clamp((c - 0.5) * uContrast + 0.5, 0.0, 1.0);
+  c *= 1.0 + uKick * 0.55;                        // ...and flashes
   c *= 1.0 - dot(q, q) * 0.55;                    // vignette
   fragColor = vec4(c * uDim, 1.0);
 }`;
@@ -133,6 +135,11 @@ export class Engine {
     this.previousSeed = this.seed;
     this.tint = 1;
     this.dim = 0.82;
+    // mood: eased toward `moodTarget` so a genre change never snaps
+    this.mood = { speed: 1, beat: 1, level: 1, punch: 0, saturation: 1.15, contrast: 1 };
+    this.moodTarget = { ...this.mood };
+    this.clock = Math.random() * 100;   // mood-scaled time handed to the shaders
+    this.flow = 0;
     this.colors = [[1, 0.16, 0.78], [0.59, 0.24, 1], [0.16, 0.86, 1]];
     this.targetColors = this.colors.map((c) => c.slice());
   }
@@ -193,6 +200,10 @@ export class Engine {
 
   setPalette(colors) { this.targetColors = colors.map((c) => c.slice()); }
 
+  setMood(mood) {
+    for (const key of Object.keys(this.moodTarget)) this.moodTarget[key] = mood[key];
+  }
+
   resize() {
     const gl = this.gl;
     const dpr = window.devicePixelRatio || 1;
@@ -239,14 +250,15 @@ export class Engine {
     gl.bindTexture(gl.TEXTURE_2D, this.specTexture);
     gl.uniform1i(u.uSpec, 1);
     gl.uniform2f(u.uRes, this.width, this.height);
-    gl.uniform1f(u.uTime, time);
-    gl.uniform1f(u.uFlow, audio.flow);
-    gl.uniform1f(u.uDt, dt);
-    gl.uniform1f(u.uBass, audio.bass);
-    gl.uniform1f(u.uMid, audio.mid);
-    gl.uniform1f(u.uTreb, audio.treb);
-    gl.uniform1f(u.uVol, audio.vol);
-    gl.uniform1f(u.uBeat, audio.beat);
+    const level = this.mood.level;
+    gl.uniform1f(u.uTime, this.clock);
+    gl.uniform1f(u.uFlow, this.flow);
+    gl.uniform1f(u.uDt, dt * this.mood.speed);
+    gl.uniform1f(u.uBass, Math.min(1.7, audio.bass * level));
+    gl.uniform1f(u.uMid, Math.min(1.7, audio.mid * level));
+    gl.uniform1f(u.uTreb, Math.min(1.7, audio.treb * level));
+    gl.uniform1f(u.uVol, Math.min(1.7, audio.vol * level));
+    gl.uniform1f(u.uBeat, Math.min(1.5, audio.beat * this.mood.beat));
     gl.uniform1f(u.uBeatN, audio.beatCount);
     gl.uniform1f(u.uSeed, seed);
     gl.uniform1f(u.uTint, this.tint);
@@ -261,6 +273,11 @@ export class Engine {
     this.resize();
     if (this.current < 0) return;
     gl.bindVertexArray(this.vao);
+
+    const moodEase = 1 - Math.exp(-dt / 1.5);
+    for (const key of Object.keys(this.mood)) this.mood[key] += (this.moodTarget[key] - this.mood[key]) * moodEase;
+    this.clock += dt * this.mood.speed;
+    this.flow += dt * (0.35 + 1.5 * audio.vol) * this.mood.speed;
 
     // Ease the palette toward the new album's colours instead of snapping.
     const ease = 1 - Math.exp(-dt / 0.8);
@@ -301,6 +318,9 @@ export class Engine {
     gl.bindTexture(gl.TEXTURE_2D, destination.texture);
     gl.uniform1i(this.finalProgram.uniforms.uFrame, 0);
     gl.uniform1f(this.finalProgram.uniforms.uDim, this.dim);
+    gl.uniform1f(this.finalProgram.uniforms.uSaturation, this.mood.saturation);
+    gl.uniform1f(this.finalProgram.uniforms.uContrast, this.mood.contrast);
+    gl.uniform1f(this.finalProgram.uniforms.uKick, this.mood.punch * audio.beat);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 }

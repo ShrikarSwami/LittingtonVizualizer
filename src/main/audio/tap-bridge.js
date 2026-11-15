@@ -51,17 +51,22 @@ class Tap extends EventEmitter {
         try { message = JSON.parse(line); } catch { continue; }
         if (message.event === 'format') this.setStatus({ state: 'running', sampleRate: message.sampleRate });
         else if (message.event === 'waiting') this.setStatus({ state: 'waiting' });
+        else if (message.event === 'restart') this.setStatus({ state: 'starting' });
         else if (message.event === 'error') this.setStatus({ state: 'error', detail: `${message.stage} ${message.code ?? ''}`.trim() });
       }
     });
 
+    const startedAt = Date.now();
     child.on('exit', () => {
       if (this.child !== child) return;
       this.child = null;
       this.setStatus({ state: 'off' });
-      // Restart if we still want this target (helper crashed or was killed).
+      // The helper exits on purpose whenever the app's audio processes or the output device
+      // change, so start a fresh one straight away. If it died almost immediately, wait longer
+      // so a persistent failure doesn't turn into a spin.
       const wanted = this.prefix;
-      setTimeout(() => { if (!this.child && this.prefix === wanted && wanted) this.start(); }, 2000);
+      const delay = Date.now() - startedAt < 3000 ? 3000 : 300;
+      setTimeout(() => { if (!this.child && this.prefix === wanted && wanted) this.start(); }, delay);
     });
   }
 

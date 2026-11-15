@@ -225,6 +225,7 @@ final class TapSession {
         if written < 0 && errno == EPIPE { exit(0) }   // the app went away
     }
 
+    /// Only used to undo a half-built tap when start() fails part-way.
     func stop() {
         if aggregateID != kAudioObjectUnknown {
             if let procID {
@@ -240,7 +241,13 @@ final class TapSession {
     }
 }
 
-// MARK: - Supervisor: rebuild the tap when the app's audio processes or the output device change
+// MARK: - Supervisor
+//
+// The tap is built once. If the app's audio processes or the output device change, this helper
+// simply exits and the app starts a fresh one. Tearing a tap down by hand (AudioDeviceStop) can
+// block forever when the output device is asleep or has just disappeared, and a blocked helper
+// would outlive the app; exiting is always safe because macOS removes a process's taps and
+// private aggregate devices when it ends.
 
 var session: TapSession?
 var currentProcesses: [AudioObjectID] = []
@@ -250,14 +257,14 @@ var waitingLogged = false
 func refresh() {
     let processes = matchingProcesses()
     let output = defaultOutputUID()
-    if processes == currentProcesses && output == currentOutput && (session != nil || processes.isEmpty) {
+
+    if session != nil {
+        if processes != currentProcesses || output != currentOutput {
+            log(["event": "restart"])
+            _exit(0)
+        }
         return
     }
-    session?.stop()
-    session = nil
-    currentProcesses = processes
-    currentOutput = output
-
     guard !processes.isEmpty, let output else {
         if !waitingLogged { log(["event": "waiting"]); waitingLogged = true }
         return
@@ -266,8 +273,10 @@ func refresh() {
     let next = TapSession()
     if next.start(processes: processes, outputUID: output) {
         session = next
+        currentProcesses = processes
+        currentOutput = output
     } else {
-        currentProcesses = []   // try again on the next tick
+        _exit(1)   // start() already reported why; the app retries after a pause
     }
 }
 
@@ -276,19 +285,21 @@ timer.schedule(deadline: .now(), repeating: .seconds(2))
 timer.setEventHandler { refresh() }
 timer.resume()
 
+// Quit immediately when asked to, or when the app that launched us goes away (stdin closes).
+// Both run off the main queue so they still work if a Core Audio call is blocking it.
+let exitQueue = DispatchQueue(label: "audiotap.exit")
+var signalSources: [DispatchSourceSignal] = []
 for sig in [SIGINT, SIGTERM] {
     signal(sig, SIG_IGN)
-    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
-    source.setEventHandler { session?.stop(); exit(0) }
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: exitQueue)
+    source.setEventHandler { _exit(0) }
     source.resume()
-    _ = Unmanaged.passRetained(source as AnyObject)
+    signalSources.append(source)
 }
-
-// Exit if the parent closes our stdin (the Electron app quit or crashed).
-DispatchQueue.global().async {
+Thread.detachNewThread {
     var byte: UInt8 = 0
     while read(STDIN_FILENO, &byte, 1) > 0 {}
-    DispatchQueue.main.async { session?.stop(); exit(0) }
+    _exit(0)
 }
 
 dispatchMain()
